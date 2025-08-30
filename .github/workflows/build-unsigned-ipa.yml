@@ -1,4 +1,4 @@
-name: Build unsigned iOS .ipa (fix: info path)
+name: Build unsigned iOS .ipa (fix - info path)
 
 on:
   workflow_dispatch:
