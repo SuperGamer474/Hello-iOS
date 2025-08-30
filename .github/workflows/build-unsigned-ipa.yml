@@ -1,4 +1,4 @@
-name: Build unsigned iOS .ipa (no Mac needed locally)
+name: Build unsigned iOS .ipa (fixed: build xcodegen from source)
 
 on:
   workflow_dispatch:
@@ -17,7 +17,6 @@ jobs:
         run: |
           set -e
 
-          # Project spec for xcodegen
           cat > project.yml <<'YML'
           name: MyApp
           options:
@@ -37,7 +36,6 @@ jobs:
                 SWIFT_VERSION: "5.0"
           YML
 
-          # Create source dir and SwiftUI app
           mkdir -p Sources/MyApp
 
           cat > Sources/MyApp/MyApp.swift <<'SWIFT'
@@ -75,7 +73,6 @@ jobs:
           }
           SWIFT
 
-          # Minimal Info.plist (xcodegen will link this)
           cat > Info.plist <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -99,15 +96,22 @@ jobs:
           </plist>
           PLIST
 
-      - name: Install xcodegen
+      - name: Build xcodegen from source (no Homebrew)
         run: |
-          brew install xcpretty || true
-          brew tap yonaskolb/xcodegen || true
-          brew install xcodegen
+          set -e
+          echo "Cloning XcodeGen..."
+          git clone --depth 1 https://github.com/yonaskolb/XcodeGen.git /tmp/XcodeGen
+          echo "Building XcodeGen from source (this can take ~30s)..."
+          cd /tmp/XcodeGen
+          swift build -c release
+          echo "Installing xcodegen to /usr/local/bin (sudo may be required)..."
+          sudo cp .build/release/xcodegen /usr/local/bin/xcodegen
+          /usr/local/bin/xcodegen version || xcodegen version
 
       - name: Generate Xcode project
         run: |
           xcodegen generate --spec project.yml
+          ls -la MyApp.xcodeproj || true
 
       - name: Build xcarchive (unsigned)
         run: |
@@ -120,7 +124,7 @@ jobs:
             -configuration Release \
             CODE_SIGN_IDENTITY="" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 
-      - name: Create unsigned .ipa by packaging .app (reliable fallback)
+      - name: Create unsigned .ipa by packaging .app
         run: |
           set -e
           APP_PATH="$PWD/build/MyApp.xcarchive/Products/Applications/MyApp.app"
