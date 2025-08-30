@@ -1,4 +1,4 @@
-name: Build unsigned iOS .ipa (fix - info path)
+name: Build unsigned iOS .ipa
 
 on:
   workflow_dispatch:
@@ -21,90 +21,12 @@ jobs:
           echo "=== sw_vers ==="
           sw_vers || true
 
-      - name: Create minimal SwiftUI app files + xcodegen spec (explicit bundleId + info.path)
+      - name: Ensure project.yml and sources exist (debug)
         run: |
-          set -e
-          cat > project.yml <<'YML'
-          name: MyApp
-          options:
-            bundleIdPrefix: com.example
-            xcodeVersion: "15.0"
-          configs:
-            Debug: debug
-            Release: release
-          targets:
-            MyApp:
-              type: application
-              platform: iOS
-              deploymentTarget: "15.0"
-              sources: [Sources/MyApp]
-              bundleId: com.example.myapp
-              info:
-                path: Info.plist
-              settings:
-                IPHONEOS_DEPLOYMENT_TARGET: "15.0"
-                SWIFT_VERSION: "5.0"
-          YML
-
-          mkdir -p Sources/MyApp
-
-          cat > Sources/MyApp/MyApp.swift <<'SWIFT'
-          import SwiftUI
-
-          @main
-          struct MyApp: App {
-              var body: some Scene {
-                  WindowGroup {
-                      ContentView()
-                  }
-              }
-          }
-          SWIFT
-
-          cat > Sources/MyApp/ContentView.swift <<'SWIFT'
-          import SwiftUI
-
-          struct ContentView: View {
-              var body: some View {
-                  VStack(spacing:20) {
-                      Text("Unsigned IPA built by GitHub Actions 🚀")
-                          .font(.title2)
-                          .padding()
-                      Text("Re-sign me later 😉")
-                          .font(.subheadline)
-                  }
-              }
-          }
-
-          struct ContentView_Previews: PreviewProvider {
-              static var previews: some View {
-                  ContentView()
-              }
-          }
-          SWIFT
-
-          cat > Info.plist <<'PLIST'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>CFBundleDisplayName</key>
-            <string>MyApp</string>
-            <key>CFBundleName</key>
-            <string>MyApp</string>
-            <key>CFBundleIdentifier</key>
-            <string>com.example.myapp</string>
-            <key>CFBundleVersion</key>
-            <string>1</string>
-            <key>CFBundleShortVersionString</key>
-            <string>1.0</string>
-            <key>UILaunchStoryboardName</key>
-            <string>LaunchScreen</string>
-            <key>NSPrincipalClass</key>
-            <string>UIApplication</string>
-          </dict>
-          </plist>
-          PLIST
+          echo "Workspace files:"
+          ls -la || true
+          echo "project.yml:"
+          sed -n '1,200p' project.yml || true
 
       - name: Build xcodegen from source (install to $HOME/.local/bin)
         run: |
@@ -129,16 +51,13 @@ jobs:
           set -e
           ARCHIVE_PATH="$PWD/build/MyApp.xcarchive"
           mkdir -p build
-
           candidates=(77 70 63 60 56 55)
-
           build_ok=0
           for v in "${candidates[@]}"; do
             echo "----- Attempting build with objectVersion = $v -----"
             /usr/bin/perl -0777 -pe "s/objectVersion = \\d+;/objectVersion = $v;/" -i.bak MyApp.xcodeproj/project.pbxproj || true
             echo "Applied objectVersion $v. Header preview:"
             sed -n '1,20p' MyApp.xcodeproj/project.pbxproj || true
-
             echo "Running xcodebuild archive..."
             set +e
             xcodebuild clean archive \
@@ -150,19 +69,16 @@ jobs:
               CODE_SIGN_IDENTITY="" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
             rc=$?
             set -e
-
             if [ $rc -eq 0 ]; then
               echo "xcodebuild succeeded with objectVersion = $v"
               build_ok=1
               break
             else
               echo "xcodebuild failed (exit $rc). Printing last 200 lines from xcodebuild output for debug:"
-              # xcodebuild output is in the job log; show some context lines if available
               tail -n 200 /Users/runner/Library/Logs/DiagnosticReports/* 2>/dev/null || true
               echo "Will try next objectVersion if available."
             fi
           done
-
           if [ "$build_ok" -ne 1 ]; then
             echo "ERROR: All objectVersion attempts failed. Dumping debug info:"
             echo "===== project.pbxproj header ====="
