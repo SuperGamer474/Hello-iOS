@@ -1,0 +1,19 @@
+name: MyApp
+options:
+  bundleIdPrefix: com.example
+  xcodeVersion: "15.0"
+configs:
+  Debug: debug
+  Release: release
+targets:
+  MyApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources: [Sources/MyApp]
+    bundleId: com.example.myapp
+    info:
+      path: Info.plist
+    settings:
+      IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+      SWIFT_VERSION: "5.0"
