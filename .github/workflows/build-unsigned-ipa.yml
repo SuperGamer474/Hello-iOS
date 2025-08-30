@@ -1,4 +1,4 @@
-name: Build unsigned iOS .ipa (fix bundle id + info.plist)
+name: Build unsigned iOS .ipa (fix: info path)
 
 on:
   workflow_dispatch:
@@ -21,7 +21,7 @@ jobs:
           echo "=== sw_vers ==="
           sw_vers || true
 
-      - name: Create minimal SwiftUI app files + xcodegen spec (explicit bundleId + info)
+      - name: Create minimal SwiftUI app files + xcodegen spec (explicit bundleId + info.path)
         run: |
           set -e
           cat > project.yml <<'YML'
@@ -39,7 +39,8 @@ jobs:
               deploymentTarget: "15.0"
               sources: [Sources/MyApp]
               bundleId: com.example.myapp
-              info: Info.plist
+              info:
+                path: Info.plist
               settings:
                 IPHONEOS_DEPLOYMENT_TARGET: "15.0"
                 SWIFT_VERSION: "5.0"
@@ -122,8 +123,6 @@ jobs:
           echo "Generated project at: $(pwd)/MyApp.xcodeproj"
           echo "project.pbxproj header (first 60 lines):"
           sed -n '1,60p' MyApp.xcodeproj/project.pbxproj || true
-          echo "Show target build settings (Release config):"
-          /usr/libexec/PlistBuddy -c "Print :objects" MyApp.xcodeproj/project.pbxproj 2>/dev/null || true
 
       - name: Try building archive, auto-fix objectVersion on future-format error
         run: |
@@ -157,10 +156,9 @@ jobs:
               build_ok=1
               break
             else
-              echo "xcodebuild failed (exit $rc)."
-              # Print last 200 lines of logs for quick debugging
-              echo "----- Last 200 lines of build log -----"
-              tail -n 200 /var/log/system.log 2>/dev/null || true
+              echo "xcodebuild failed (exit $rc). Printing last 200 lines from xcodebuild output for debug:"
+              # xcodebuild output is in the job log; show some context lines if available
+              tail -n 200 /Users/runner/Library/Logs/DiagnosticReports/* 2>/dev/null || true
               echo "Will try next objectVersion if available."
             fi
           done
