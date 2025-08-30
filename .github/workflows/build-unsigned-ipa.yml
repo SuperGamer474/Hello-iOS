@@ -1,0 +1,142 @@
+name: Build unsigned iOS .ipa (no Mac needed locally)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-unsigned-ipa:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Create minimal SwiftUI app files + xcodegen spec
+        run: |
+          set -e
+
+          # Project spec for xcodegen
+          cat > project.yml <<'YML'
+          name: MyApp
+          options:
+            bundleIdPrefix: com.example
+          configs:
+            Debug: debug
+            Release: release
+          targets:
+            MyApp:
+              type: application
+              platform: iOS
+              deploymentTarget: "15.0"
+              sources: [Sources/MyApp]
+              settings:
+                PRODUCT_BUNDLE_IDENTIFIER: com.example.myapp
+                IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+                SWIFT_VERSION: "5.0"
+          YML
+
+          # Create source dir and SwiftUI app
+          mkdir -p Sources/MyApp
+
+          cat > Sources/MyApp/MyApp.swift <<'SWIFT'
+          import SwiftUI
+
+          @main
+          struct MyApp: App {
+              var body: some Scene {
+                  WindowGroup {
+                      ContentView()
+                  }
+              }
+          }
+          SWIFT
+
+          cat > Sources/MyApp/ContentView.swift <<'SWIFT'
+          import SwiftUI
+
+          struct ContentView: View {
+              var body: some View {
+                  VStack(spacing:20) {
+                      Text("Unsigned IPA built by GitHub Actions 🚀")
+                          .font(.title2)
+                          .padding()
+                      Text("Re-sign me later 😉")
+                          .font(.subheadline)
+                  }
+              }
+          }
+
+          struct ContentView_Previews: PreviewProvider {
+              static var previews: some View {
+                  ContentView()
+              }
+          }
+          SWIFT
+
+          # Minimal Info.plist (xcodegen will link this)
+          cat > Info.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleDisplayName</key>
+            <string>MyApp</string>
+            <key>CFBundleName</key>
+            <string>MyApp</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.example.myapp</string>
+            <key>CFBundleVersion</key>
+            <string>1</string>
+            <key>CFBundleShortVersionString</key>
+            <string>1.0</string>
+            <key>UILaunchStoryboardName</key>
+            <string>LaunchScreen</string>
+            <key>NSPrincipalClass</key>
+            <string>UIApplication</string>
+          </dict>
+          </plist>
+          PLIST
+
+      - name: Install xcodegen
+        run: |
+          brew install xcpretty || true
+          brew tap yonaskolb/xcodegen || true
+          brew install xcodegen
+
+      - name: Generate Xcode project
+        run: |
+          xcodegen generate --spec project.yml
+
+      - name: Build xcarchive (unsigned)
+        run: |
+          mkdir -p build
+          xcodebuild clean archive \
+            -project MyApp.xcodeproj \
+            -scheme MyApp \
+            -archivePath $PWD/build/MyApp.xcarchive \
+            -sdk iphoneos \
+            -configuration Release \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+
+      - name: Create unsigned .ipa by packaging .app (reliable fallback)
+        run: |
+          set -e
+          APP_PATH="$PWD/build/MyApp.xcarchive/Products/Applications/MyApp.app"
+          echo "App path: $APP_PATH"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: App not found at expected path. Listing archive contents:"
+            ls -la build/MyApp.xcarchive || true
+            exit 1
+          fi
+          mkdir -p build/Payload
+          cp -R "$APP_PATH" build/Payload/
+          (cd build && zip -r MyApp-unsigned.ipa Payload) || exit 1
+          ls -la build/MyApp-unsigned.ipa
+
+      - name: Upload unsigned IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyApp-unsigned-ipa
+          path: build/MyApp-unsigned.ipa
