@@ -1,4 +1,4 @@
-name: Build unsigned iOS .ipa (auto-fix objectVersion)
+name: Build unsigned iOS .ipa (fix bundle id + info.plist)
 
 on:
   workflow_dispatch:
@@ -21,7 +21,7 @@ jobs:
           echo "=== sw_vers ==="
           sw_vers || true
 
-      - name: Create minimal SwiftUI app files + xcodegen spec (force Xcode 15 format)
+      - name: Create minimal SwiftUI app files + xcodegen spec (explicit bundleId + info)
         run: |
           set -e
           cat > project.yml <<'YML'
@@ -38,8 +38,9 @@ jobs:
               platform: iOS
               deploymentTarget: "15.0"
               sources: [Sources/MyApp]
+              bundleId: com.example.myapp
+              info: Info.plist
               settings:
-                PRODUCT_BUNDLE_IDENTIFIER: com.example.myapp
                 IPHONEOS_DEPLOYMENT_TARGET: "15.0"
                 SWIFT_VERSION: "5.0"
           YML
@@ -119,8 +120,10 @@ jobs:
           set -e
           $HOME/.local/bin/xcodegen generate --spec project.yml
           echo "Generated project at: $(pwd)/MyApp.xcodeproj"
-          echo "project.pbxproj first 60 lines:"
+          echo "project.pbxproj header (first 60 lines):"
           sed -n '1,60p' MyApp.xcodeproj/project.pbxproj || true
+          echo "Show target build settings (Release config):"
+          /usr/libexec/PlistBuddy -c "Print :objects" MyApp.xcodeproj/project.pbxproj 2>/dev/null || true
 
       - name: Try building archive, auto-fix objectVersion on future-format error
         run: |
@@ -128,15 +131,13 @@ jobs:
           ARCHIVE_PATH="$PWD/build/MyApp.xcarchive"
           mkdir -p build
 
-          # candidate objectVersion numbers to try (from newest->oldish)
           candidates=(77 70 63 60 56 55)
 
           build_ok=0
           for v in "${candidates[@]}"; do
             echo "----- Attempting build with objectVersion = $v -----"
-            # replace any existing objectVersion value with chosen one
             /usr/bin/perl -0777 -pe "s/objectVersion = \\d+;/objectVersion = $v;/" -i.bak MyApp.xcodeproj/project.pbxproj || true
-            echo "Applied objectVersion $v. Showing header lines:"
+            echo "Applied objectVersion $v. Header preview:"
             sed -n '1,20p' MyApp.xcodeproj/project.pbxproj || true
 
             echo "Running xcodebuild archive..."
@@ -156,16 +157,11 @@ jobs:
               build_ok=1
               break
             else
-              echo "xcodebuild failed (exit $rc). Checking if failure was future-format error..."
-              # look for the future-format phrase in the last part of the xcresult or log
-              # xcodebuild prints to stderr/stdout which appears in the log; search logs for key phrase
-              if xcodebuild -version >/dev/null 2>&1; then
-                # examine last 200 lines of log (the runner will contain xcodebuild output)
-                tail -n 200 $(mktemp -t xcodebuild_log || true) 2>/dev/null || true
-              fi
-              # If the failure message contains "future Xcode project file format" try next version
-              # (we can't capture the message here robustly, but we will continue trying)
-              echo "Will try the next candidate objectVersion (if any)."
+              echo "xcodebuild failed (exit $rc)."
+              # Print last 200 lines of logs for quick debugging
+              echo "----- Last 200 lines of build log -----"
+              tail -n 200 /var/log/system.log 2>/dev/null || true
+              echo "Will try next objectVersion if available."
             fi
           done
 
