@@ -1,4 +1,4 @@
-name: Build unsigned iOS .ipa (fixed: build xcodegen from source)
+name: Build unsigned iOS .ipa (fixed xcodegen)
 
 on:
   workflow_dispatch:
@@ -9,14 +9,13 @@ jobs:
   build-unsigned-ipa:
     runs-on: macos-latest
     timeout-minutes: 60
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Create minimal SwiftUI app files + xcodegen spec
         run: |
-          set -e
-
           cat > project.yml <<'YML'
           name: MyApp
           options:
@@ -96,21 +95,19 @@ jobs:
           </plist>
           PLIST
 
-      - name: Build xcodegen from source (no Homebrew)
+      - name: Build xcodegen from source (no Homebrew, install to $HOME/.local/bin)
         run: |
           set -e
-          echo "Cloning XcodeGen..."
           git clone --depth 1 https://github.com/yonaskolb/XcodeGen.git /tmp/XcodeGen
-          echo "Building XcodeGen from source (this can take ~30s)..."
           cd /tmp/XcodeGen
           swift build -c release
-          echo "Installing xcodegen to /usr/local/bin (sudo may be required)..."
-          sudo cp .build/release/xcodegen /usr/local/bin/xcodegen
-          /usr/local/bin/xcodegen version || xcodegen version
+          mkdir -p $HOME/.local/bin
+          cp .build/release/xcodegen $HOME/.local/bin/xcodegen
+          echo "Installed xcodegen to $HOME/.local/bin"
 
-      - name: Generate Xcode project
+      - name: Generate Xcode project with xcodegen
         run: |
-          xcodegen generate --spec project.yml
+          $HOME/.local/bin/xcodegen generate --spec project.yml
           ls -la MyApp.xcodeproj || true
 
       - name: Build xcarchive (unsigned)
