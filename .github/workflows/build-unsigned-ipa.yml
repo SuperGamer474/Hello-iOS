@@ -1,4 +1,4 @@
-name: Build unsigned iOS .ipa (fixed xcodegen)
+name: Build unsigned iOS .ipa (xcodeVersion fix)
 
 on:
   workflow_dispatch:
@@ -14,12 +14,19 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Create minimal SwiftUI app files + xcodegen spec
+      - name: Show Xcode version (debug)
         run: |
+          xcodebuild -version
+          sw_vers
+
+      - name: Create minimal SwiftUI app files + xcodegen spec (force Xcode 15 format)
+        run: |
+          set -e
           cat > project.yml <<'YML'
           name: MyApp
           options:
             bundleIdPrefix: com.example
+            xcodeVersion: "15.0"
           configs:
             Debug: debug
             Release: release
@@ -95,7 +102,7 @@ jobs:
           </plist>
           PLIST
 
-      - name: Build xcodegen from source (no Homebrew, install to $HOME/.local/bin)
+      - name: Build xcodegen from source (install to $HOME/.local/bin)
         run: |
           set -e
           git clone --depth 1 https://github.com/yonaskolb/XcodeGen.git /tmp/XcodeGen
@@ -108,10 +115,14 @@ jobs:
       - name: Generate Xcode project with xcodegen
         run: |
           $HOME/.local/bin/xcodegen generate --spec project.yml
+          echo "Listing generated project:"
           ls -la MyApp.xcodeproj || true
+          echo "Show project.pbxproj header lines (first 30 lines):"
+          sed -n '1,30p' MyApp.xcodeproj/project.pbxproj || true
 
       - name: Build xcarchive (unsigned)
         run: |
+          set -e
           mkdir -p build
           xcodebuild clean archive \
             -project MyApp.xcodeproj \
