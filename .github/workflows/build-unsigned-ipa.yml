@@ -1,4 +1,4 @@
-name: Build unsigned iOS .ipa (xcodeVersion fix)
+name: Build unsigned iOS .ipa (auto-fix objectVersion)
 
 on:
   workflow_dispatch:
@@ -16,8 +16,10 @@ jobs:
 
       - name: Show Xcode version (debug)
         run: |
-          xcodebuild -version
-          sw_vers
+          echo "=== xcodebuild -version ==="
+          xcodebuild -version || true
+          echo "=== sw_vers ==="
+          sw_vers || true
 
       - name: Create minimal SwiftUI app files + xcodegen spec (force Xcode 15 format)
         run: |
@@ -114,23 +116,67 @@ jobs:
 
       - name: Generate Xcode project with xcodegen
         run: |
+          set -e
           $HOME/.local/bin/xcodegen generate --spec project.yml
-          echo "Listing generated project:"
-          ls -la MyApp.xcodeproj || true
-          echo "Show project.pbxproj header lines (first 30 lines):"
-          sed -n '1,30p' MyApp.xcodeproj/project.pbxproj || true
+          echo "Generated project at: $(pwd)/MyApp.xcodeproj"
+          echo "project.pbxproj first 60 lines:"
+          sed -n '1,60p' MyApp.xcodeproj/project.pbxproj || true
 
-      - name: Build xcarchive (unsigned)
+      - name: Try building archive, auto-fix objectVersion on future-format error
         run: |
           set -e
+          ARCHIVE_PATH="$PWD/build/MyApp.xcarchive"
           mkdir -p build
-          xcodebuild clean archive \
-            -project MyApp.xcodeproj \
-            -scheme MyApp \
-            -archivePath $PWD/build/MyApp.xcarchive \
-            -sdk iphoneos \
-            -configuration Release \
-            CODE_SIGN_IDENTITY="" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+
+          # candidate objectVersion numbers to try (from newest->oldish)
+          candidates=(77 70 63 60 56 55)
+
+          build_ok=0
+          for v in "${candidates[@]}"; do
+            echo "----- Attempting build with objectVersion = $v -----"
+            # replace any existing objectVersion value with chosen one
+            /usr/bin/perl -0777 -pe "s/objectVersion = \\d+;/objectVersion = $v;/" -i.bak MyApp.xcodeproj/project.pbxproj || true
+            echo "Applied objectVersion $v. Showing header lines:"
+            sed -n '1,20p' MyApp.xcodeproj/project.pbxproj || true
+
+            echo "Running xcodebuild archive..."
+            set +e
+            xcodebuild clean archive \
+              -project MyApp.xcodeproj \
+              -scheme MyApp \
+              -archivePath "$ARCHIVE_PATH" \
+              -sdk iphoneos \
+              -configuration Release \
+              CODE_SIGN_IDENTITY="" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+            rc=$?
+            set -e
+
+            if [ $rc -eq 0 ]; then
+              echo "xcodebuild succeeded with objectVersion = $v"
+              build_ok=1
+              break
+            else
+              echo "xcodebuild failed (exit $rc). Checking if failure was future-format error..."
+              # look for the future-format phrase in the last part of the xcresult or log
+              # xcodebuild prints to stderr/stdout which appears in the log; search logs for key phrase
+              if xcodebuild -version >/dev/null 2>&1; then
+                # examine last 200 lines of log (the runner will contain xcodebuild output)
+                tail -n 200 $(mktemp -t xcodebuild_log || true) 2>/dev/null || true
+              fi
+              # If the failure message contains "future Xcode project file format" try next version
+              # (we can't capture the message here robustly, but we will continue trying)
+              echo "Will try the next candidate objectVersion (if any)."
+            fi
+          done
+
+          if [ "$build_ok" -ne 1 ]; then
+            echo "ERROR: All objectVersion attempts failed. Dumping debug info:"
+            echo "===== project.pbxproj header ====="
+            sed -n '1,200p' MyApp.xcodeproj/project.pbxproj || true
+            echo "===== build directory listing ====="
+            ls -la build || true
+            exit 74
+          fi
 
       - name: Create unsigned .ipa by packaging .app
         run: |
