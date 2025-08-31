@@ -1,17 +1,19 @@
 name: helloios
+
 options:
-  bundleIdPrefix: com.SuperGamer474.helloios
+  bundleIdPrefix: com.SuperGamer474
   xcodeVersion: "15.0"
+
 configs:
   Debug: debug
   Release: release
+
 targets:
   helloios:
     type: application
     platform: iOS
     deploymentTarget: "15.0"
     sources: [Sources/helloios]
-    bundleId: com.SuperGamer474.helloios
     info:
       path: Info.plist
     settings:
