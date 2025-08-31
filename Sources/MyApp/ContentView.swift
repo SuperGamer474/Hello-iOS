@@ -1,118 +1,178 @@
 // ContentView.swift
-// "Hello iOS World!" — all style, no extra text.
-// Drop into a SwiftUI app (iOS 15+ recommended).
+// Hello iOS World! — tilts with real device motion (CoreMotion).
+// Paste into your SwiftUI app. Test on a real device (iPad 8) — Simulator won't provide real motion.
 
 import SwiftUI
+import CoreMotion
 
+// MARK: - Motion manager (ObservableObject)
+final class MotionManager: ObservableObject {
+    private let manager = CMMotionManager()
+    private let queue = OperationQueue()
+    
+    // published smoothed angles (radians)
+    @Published var pitch: Double = 0.0    // x-tilt
+    @Published var roll: Double = 0.0     // y-tilt
+    
+    // smoothing (low-pass) state
+    private var smoothPitch: Double = 0.0
+    private var smoothRoll: Double = 0.0
+    private let alpha: Double = 0.07 // smoothing strength (0..1) — lower = smoother
+    
+    init(updateHz: Double = 60) {
+        manager.deviceMotionUpdateInterval = 1.0 / updateHz
+        start()
+    }
+    
+    deinit {
+        stop()
+    }
+    
+    func start() {
+        guard manager.isDeviceMotionAvailable else { return }
+        manager.startDeviceMotionUpdates(using: .xArbitraryCorrectedZVertical, to: queue) { [weak self] motion, _ in
+            guard let self = self, let m = motion else { return }
+            // pitch = rotation about x-axis. roll = rotation about y-axis.
+            let rawPitch = m.attitude.pitch    // radians (-π..π)
+            let rawRoll  = m.attitude.roll     // radians (-π..π)
+            
+            // low-pass filter (smooth jitter)
+            self.smoothPitch = (self.alpha * rawPitch) + ((1 - self.alpha) * self.smoothPitch)
+            self.smoothRoll  = (self.alpha * rawRoll)  + ((1 - self.alpha) * self.smoothRoll)
+            
+            // publish on main thread
+            DispatchQueue.main.async {
+                self.pitch = self.smoothPitch
+                self.roll  = self.smoothRoll
+            }
+        }
+    }
+    
+    func stop() {
+        manager.stopDeviceMotionUpdates()
+    }
+}
+
+// MARK: - ContentView
 struct ContentView: View {
-    @State private var animate = false
-    @State private var floatPhase: CGFloat = 0
-
+    @StateObject private var motion = MotionManager()
+    @State private var breathe = false
+    
+    // configurable limits and multipliers
+    private let maxDegrees: Double = 14         // max tilt degrees on each axis
+    private let responsiveness: Double = 1.0    // multiplier for how reactive it feels
+    
     var body: some View {
         ZStack {
-            // animated gradient background
+            // background
             LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.06, green: 0.02, blue: 0.18),
-                    Color(red: 0.18, green: 0.03, blue: 0.40),
-                    Color(red: 0.03, green: 0.30, blue: 0.45)
-                ]),
-                startPoint: animate ? .topLeading : .bottomTrailing,
-                endPoint: animate ? .bottomTrailing : .topLeading
+                gradient: Gradient(colors: [Color(red:0.05, green:0.02, blue:0.18),
+                                           Color(red:0.18, green:0.03, blue:0.40),
+                                           Color(red:0.03, green:0.30, blue:0.45)]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
-            .animation(.linear(duration: 10).repeatForever(autoreverses: true), value: animate)
-
-            // soft moving blobs for depth (no text)
-            FloatingBlobs(phase: floatPhase)
+            
+            // decorative blobs
+            FloatingBlobs(phase: breathe ? 1 : 0)
                 .blendMode(.screen)
                 .ignoresSafeArea()
-                .opacity(0.35)
-
-            // subtle starry particles using Canvas
+                .opacity(0.34)
+            
+            // particle sparkle
             ParticleField()
                 .ignoresSafeArea()
-                .opacity(0.18)
-
-            // MAIN TEXT — only this string is shown
+                .opacity(0.14)
+            
+            // THE TILTING TEXT
             Text("Hello iOS World!")
                 .font(.system(size: 56, weight: .black, design: .rounded))
                 .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .minimumScaleFactor(0.5)
-                // neon gradient fill
                 .foregroundStyle(
-                    LinearGradient(
-                        colors: [Color.purple, Color.blue, Color.cyan, Color.white],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
+                    LinearGradient(colors: [Color.purple, Color.blue, Color.cyan, Color.white],
+                                   startPoint: .leading, endPoint: .trailing)
                 )
-                // soft inner glow effect
-                .overlay(
-                    Text("Hello iOS World!")
-                        .font(.system(size: 56, weight: .black, design: .rounded))
-                        .foregroundColor(.white)
-                        .blur(radius: 8)
-                        .opacity(0.18)
-                )
-                // glass halo behind
-                .padding(18)
+                .padding(20)
                 .background(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .fill(.ultraThinMaterial)
-                        .background(
+                        .overlay(
                             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                .stroke(LinearGradient(colors: [Color.white.opacity(0.16), Color.white.opacity(0.03)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
+                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
                         )
-                        .shadow(color: Color.black.opacity(0.45), radius: 20, x: 0, y: 10)
                 )
-                // neon outer glow
-                .shadow(color: Color.purple.opacity(0.22), radius: 40, x: 0, y: 10)
-                .shadow(color: Color.blue.opacity(0.18), radius: 80, x: 0, y: 20)
-                // 3D tilt + pulse
-                .rotation3DEffect(.degrees(animate ? 6 : -6), axis: (x: 10, y: 6, z: 0))
-                .scaleEffect(animate ? 1.02 : 0.98)
-                .animation(.spring(response: 1.2, dampingFraction: 0.6), value: animate)
+                .shadow(color: Color.purple.opacity(0.22), radius: 36, x: 0, y: 10)
+                .shadow(color: Color.blue.opacity(0.14), radius: 80, x: 0, y: 20)
+                // map pitch/roll to rotation3DEffect angles (degrees)
+                .rotation3DEffect(
+                    Angle(degrees: mappedPitchDegrees()),
+                    axis: (x: 1, y: 0, z: 0),
+                    perspective: 0.7
+                )
+                .rotation3DEffect(
+                    Angle(degrees: mappedRollDegrees()),
+                    axis: (x: 0, y: 1, z: 0),
+                    perspective: 0.7
+                )
+                // subtle scale based on tilt magnitude
+                .scaleEffect(1.0 + CGFloat(min(0.03, (abs(mappedPitchDegrees()) + abs(mappedRollDegrees())) / 800)))
+                .animation(.interactiveSpring(response: 0.25, dampingFraction: 0.75, blendDuration: 0.1), value: motion.pitch)
+                .animation(.interactiveSpring(response: 0.25, dampingFraction: 0.75, blendDuration: 0.1), value: motion.roll)
                 .onAppear {
-                    animate = true
-                    withAnimation(.linear(duration: 8).repeatForever(autoreverses: false)) {
-                        floatPhase = 1
+                    // gentle breathing when no/low motion (or just to look epic)
+                    withAnimation(.easeInOut(duration: 4).repeatForever(autoreverses: true)) {
+                        breathe.toggle()
                     }
                 }
         }
     }
+    
+    // convert smoothed radians to clamped degrees with multiplier
+    private func mappedPitchDegrees() -> Double {
+        // pitch typically: + = nose up, - = nose down. invert if desired
+        let degrees = motion.pitch * (180.0 / .pi) * responsiveness
+        return clamp(degrees * -1.0, min: -maxDegrees, max: maxDegrees)
+    }
+    
+    private func mappedRollDegrees() -> Double {
+        let degrees = motion.roll * (180.0 / .pi) * responsiveness
+        return clamp(degrees * 1.0, min: -maxDegrees, max: maxDegrees)
+    }
+    
+    private func clamp(_ v: Double, min: Double, max: Double) -> Double {
+        if v < min { return min }
+        if v > max { return max }
+        return v
+    }
 }
 
-// MARK: - Floating blobs (decorative depth)
+// MARK: - Floating blobs (same decorative helpers)
 fileprivate struct FloatingBlobs: View {
-    var phase: CGFloat // 0 -> 1 (animated)
+    var phase: CGFloat = 0
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                blob(at: CGPoint(x: geo.size.width * 0.18, y: geo.size.height * 0.16), size: 300, hue: 0.75, phaseShift: 0.0)
-                blob(at: CGPoint(x: geo.size.width * 0.85, y: geo.size.height * 0.2), size: 220, hue: 0.55, phaseShift: 0.35)
-                blob(at: CGPoint(x: geo.size.width * 0.65, y: geo.size.height * 0.8), size: 420, hue: 0.33, phaseShift: 0.8)
+                blob(at: CGPoint(x: geo.size.width * 0.18, y: geo.size.height * 0.16), size: 320, hue: 0.77, phaseShift: 0.0)
+                blob(at: CGPoint(x: geo.size.width * 0.86, y: geo.size.height * 0.22), size: 220, hue: 0.55, phaseShift: 0.35)
+                blob(at: CGPoint(x: geo.size.width * 0.62, y: geo.size.height * 0.78), size: 420, hue: 0.33, phaseShift: 0.8)
             }
             .blur(radius: 36)
             .opacity(0.95)
             .rotationEffect(.degrees(Double(phase * 18)))
         }
     }
-
     func blob(at point: CGPoint, size: CGFloat, hue: Double, phaseShift: CGFloat) -> some View {
-        // gentle orbital offset
-        let offsetX = (sin((phase + phaseShift) * .pi * 2) * 40)
-        let offsetY = (cos((phase + phaseShift) * .pi * 2) * 26)
-        return Circle()
+        Circle()
             .fill(
                 RadialGradient(gradient: Gradient(colors: [
-                    Color(hue: hue, saturation: 0.9, brightness: 0.9),
+                    Color(hue: hue, saturation: 0.9, brightness: 0.92),
                     Color(hue: hue + 0.06, saturation: 0.7, brightness: 0.55)
                 ]), center: .center, startRadius: 10, endRadius: size * 0.6)
             )
             .frame(width: size, height: size)
-            .position(x: point.x + offsetX, y: point.y + offsetY)
+            .position(x: point.x + CGFloat(sin((phase + phaseShift) * .pi * 2) * 40),
+                      y: point.y + CGFloat(cos((phase + phaseShift) * .pi * 2) * 26))
             .opacity(0.95)
     }
 }
@@ -123,15 +183,14 @@ fileprivate struct ParticleField: View {
         TimelineView(.animation) { timeline in
             let now = timeline.date.timeIntervalSinceReferenceDate
             Canvas { context, size in
-                // create many tiny sparkle dots, animated by time
-                for i in 0..<120 {
-                    let angle = Double(i) * 23.7 + now * (0.05 + Double(i % 5) * 0.01)
-                    let radius = 0.35 * min(size.width, size.height) * (0.2 + Double((i % 7)) * 0.07)
+                for i in 0..<90 {
+                    let angle = Double(i) * 23.7 + now * (0.04 + Double(i % 5) * 0.01)
+                    let radius = 0.35 * min(size.width, size.height) * (0.18 + Double((i % 7)) * 0.06)
                     let x = size.width * 0.5 + CGFloat(cos(angle) * radius)
                     let y = size.height * 0.5 + CGFloat(sin(angle) * radius * 0.6)
-                    let alpha = 0.18 + 0.6 * (0.5 + 0.5 * sin(now * (0.6 + Double(i % 3) * 0.2) + Double(i)))
+                    let alpha = 0.08 + 0.6 * (0.5 + 0.5 * sin(now * (0.6 + Double(i % 3) * 0.2) + Double(i)))
                     let rect = CGRect(origin: CGPoint(x: x, y: y), size: CGSize(width: 1.2, height: 1.2))
-                    context.fill(Path(ellipseIn: rect), with: .color(Color.white.opacity(Double(alpha * 0.12))))
+                    context.fill(Path(ellipseIn: rect), with: .color(Color.white.opacity(Double(alpha * 0.1))))
                 }
             }
         }
