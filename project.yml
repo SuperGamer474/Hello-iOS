@@ -1,6 +1,6 @@
-name: MyApp
+name: Hello iOS
 options:
-  bundleIdPrefix: com.example
+  bundleIdPrefix: com.SuperGamer474.helloios
   xcodeVersion: "15.0"
 configs:
   Debug: debug
@@ -10,8 +10,8 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "15.0"
-    sources: [Sources/MyApp]
-    bundleId: com.example.myapp
+    sources: [Sources/helloios]
+    bundleId: com.SuperGamer474.helloios
     info:
       path: Info.plist
     settings:
