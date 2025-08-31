@@ -6,7 +6,7 @@ configs:
   Debug: debug
   Release: release
 targets:
-  MyApp:
+  helloios:
     type: application
     platform: iOS
     deploymentTarget: "15.0"
