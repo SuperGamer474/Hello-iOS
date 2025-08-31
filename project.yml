@@ -12,10 +12,9 @@ targets:
   helloios:
     type: application
     platform: iOS
-    settings:
-      INFOPLIST_FILE: "Info.plist"
     deploymentTarget: "15.0"
     sources: [Sources/helloios]
     settings:
       IPHONEOS_DEPLOYMENT_TARGET: "15.0"
       SWIFT_VERSION: "5.0"
+      INFOPLIST_FILE: "Info.plist"
