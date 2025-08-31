@@ -14,7 +14,14 @@ targets:
     platform: iOS
     deploymentTarget: "15.0"
     sources: [Sources/helloios]
+    bundleId: com.supergamer474.helloios
     settings:
       IPHONEOS_DEPLOYMENT_TARGET: "15.0"
       SWIFT_VERSION: "5.0"
-      INFOPLIST_FILE: "Info.plist"
+    info:
+      CFBundleDisplayName: "Hello iOS"
+      CFBundleName: "helloios"
+      CFBundleVersion: "1"
+      CFBundleShortVersionString: "1.0"
+      UILaunchStoryboardName: "LaunchScreen"
+      NSPrincipalClass: "UIApplication"
