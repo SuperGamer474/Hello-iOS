@@ -47,6 +47,7 @@ jobs:
           sed -n '1,60p' helloios.xcodeproj/project.pbxproj || true
 
       - name: Try building archive, auto-fix objectVersion on future-format error
+        id: archive-device
         run: |
           set -e
           ARCHIVE_PATH="$PWD/build/helloios.xcarchive"
@@ -74,7 +75,7 @@ jobs:
               build_ok=1
               break
             else
-              echo "xcodebuild failed (exit $rc). Printing last 200 lines from xcodebuild output for debug:"
+              echo "xcodebuild failed (exit $rc). Printing last 200 lines from xcodebuild output for debug (if present):"
               tail -n 200 /Users/runner/Library/Logs/DiagnosticReports/* 2>/dev/null || true
               echo "Will try next objectVersion if available."
             fi
@@ -87,24 +88,79 @@ jobs:
             ls -la build || true
             exit 74
           fi
+          echo "::set-output name=archive_path::$ARCHIVE_PATH"
 
-      - name: Create unsigned .ipa by packaging .app
+      - name: Create unsigned .ipa by packaging device .app (iphoneos)
         run: |
           set -e
-          APP_PATH="$PWD/build/helloios.xcarchive/Products/Applications/helloios.app"
-          echo "App path: $APP_PATH"
+          ARCHIVE_PATH="$PWD/build/helloios.xcarchive"
+          APP_PATH="$ARCHIVE_PATH/Products/Applications/helloios.app"
+          echo "Device app path: $APP_PATH"
           if [ ! -d "$APP_PATH" ]; then
             echo "ERROR: App not found at expected path. Listing archive contents:"
-            ls -la build/helloios.xcarchive || true
+            ls -la "$ARCHIVE_PATH" || true
             exit 1
           fi
           mkdir -p build/Payload
+          rm -rf build/Payload/* || true
           cp -R "$APP_PATH" build/Payload/
-          (cd build && zip -r helloios-unsigned.ipa Payload) || exit 1
-          ls -la build/helloios-unsigned.ipa
+          (cd build && zip -r "com.SuperGamer474.helloios-ios.ipa" Payload) || exit 1
+          ls -la build/com.SuperGamer474.helloios-ios.ipa
 
-      - name: Upload unsigned IPA artifact
+      - name: Build simulator (iphonesimulator) and package simulator .ipa (if possible)
+        run: |
+          set -e
+          echo "Starting simulator build (won't fail the entire job if it fails)."
+          SIM_DERIVED="$PWD/build/sim_derived"
+          rm -rf "$SIM_DERIVED"
+          set +e
+          xcodebuild clean build \
+            -project helloios.xcodeproj \
+            -scheme helloios \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -derivedDataPath "$SIM_DERIVED" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY=""
+          rc=$?
+          set -e
+          if [ $rc -ne 0 ]; then
+            echo "Warning: simulator build failed (exit $rc). Will attempt to recover packaging if a simulator .app exists."
+          fi
+
+          # Common locations for built simulator .app
+          POSSIBLE_APPS=(
+            "$SIM_DERIVED/Build/Products/Release-iphonesimulator/helloios.app"
+            "$SIM_DERIVED/Build/Products/Debug-iphonesimulator/helloios.app"
+            "$PWD/build/Build/Products/Release-iphonesimulator/helloios.app"
+            "$PWD/build/Release-iphonesimulator/helloios.app"
+          )
+
+          FOUND_APP=""
+          for p in "${POSSIBLE_APPS[@]}"; do
+            if [ -d "$p" ]; then
+              FOUND_APP="$p"
+              break
+            fi
+          done
+
+          if [ -z "$FOUND_APP" ]; then
+            echo "Simulator .app not found in expected locations. Listing $SIM_DERIVED contents for debug:"
+            ls -la "$SIM_DERIVED" || true
+            echo "Skipping simulator .ipa packaging."
+            exit 0
+          fi
+
+          echo "Found simulator .app at: $FOUND_APP"
+          mkdir -p build/Payload-sim
+          rm -rf build/Payload-sim/* || true
+          cp -R "$FOUND_APP" build/Payload-sim/
+          (cd build && zip -r "com.SuperGamer474.helloios-iossimulator.ipa" Payload-sim) || exit 1
+          ls -la build/com.SuperGamer474.helloios-iossimulator.ipa
+
+      - name: Upload unsigned IPA artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: helloios-unsigned-ipa
-          path: build/helloios-unsigned.ipa
+          name: helloios-unsigned-ipas
+          path: |
+            build/com.SuperGamer474.helloios-ios.ipa
+            build/com.SuperGamer474.helloios-iossimulator.ipa
