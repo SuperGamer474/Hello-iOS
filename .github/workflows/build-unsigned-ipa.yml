@@ -95,7 +95,7 @@ jobs:
           set -e
           ARCHIVE_PATH="$PWD/build/helloios.xcarchive"
           APP_PATH="$ARCHIVE_PATH/Products/Applications/helloios.app"
-          OUTPUT_IPA="build/com.SuperGamer474.helloios-unsigned-ios.ipa"
+          OUTPUT_IPA="build/com.supergamer474.helloios-unsigned-ios.ipa"
           echo "Device app path: $APP_PATH"
           if [ ! -d "$APP_PATH" ]; then
             echo "ERROR: App not found at expected path. Listing archive contents:"
@@ -154,7 +154,7 @@ jobs:
           fi
 
           echo "Found simulator .app at: $FOUND_APP"
-          SIM_IPA="build/com.SuperGamer474.helloios-unsigned-iossimulator.ipa"
+          SIM_IPA="build/com.supergamer474.helloios-unsigned-iossimulator.ipa"
           mkdir -p build/Payload-sim
           rm -rf build/Payload-sim/* || true
           cp -R "$FOUND_APP" build/Payload-sim/
@@ -165,12 +165,12 @@ jobs:
       - name: Upload device unsigned IPA artifact (named as .ipa)
         uses: actions/upload-artifact@v4
         with:
-          name: com.SuperGamer474.helloios-unsigned-ios.ipa
-          path: build/com.SuperGamer474.helloios-unsigned-ios.ipa
+          name: com.supergamer474.helloios-unsigned-ios.ipa
+          path: build/com.supergamer474.helloios-unsigned-ios.ipa
 
       - name: Upload simulator unsigned IPA artifact (named as .ipa) (ignore if not found)
         uses: actions/upload-artifact@v4
         with:
-          name: com.SuperGamer474.helloios-unsigned-iossimulator.ipa
-          path: build/com.SuperGamer474.helloios-unsigned-iossimulator.ipa
+          name: com.supergamer474.helloios-unsigned-iossimulator.ipa
+          path: build/com.supergamer474.helloios-unsigned-iossimulator.ipa
           if-no-files-found: ignore
