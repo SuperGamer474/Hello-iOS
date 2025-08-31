@@ -14,8 +14,6 @@ targets:
     platform: iOS
     deploymentTarget: "15.0"
     sources: [Sources/helloios]
-    info:
-      path: Info.plist
     settings:
       IPHONEOS_DEPLOYMENT_TARGET: "15.0"
       SWIFT_VERSION: "5.0"
