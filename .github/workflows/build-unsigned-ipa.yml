@@ -42,27 +42,27 @@ jobs:
         run: |
           set -e
           $HOME/.local/bin/xcodegen generate --spec project.yml
-          echo "Generated project at: $(pwd)/MyApp.xcodeproj"
+          echo "Generated project at: $(pwd)/helloios.xcodeproj"
           echo "project.pbxproj header (first 60 lines):"
-          sed -n '1,60p' MyApp.xcodeproj/project.pbxproj || true
+          sed -n '1,60p' helloios.xcodeproj/project.pbxproj || true
 
       - name: Try building archive, auto-fix objectVersion on future-format error
         run: |
           set -e
-          ARCHIVE_PATH="$PWD/build/MyApp.xcarchive"
+          ARCHIVE_PATH="$PWD/build/helloios.xcarchive"
           mkdir -p build
           candidates=(77 70 63 60 56 55)
           build_ok=0
           for v in "${candidates[@]}"; do
             echo "----- Attempting build with objectVersion = $v -----"
-            /usr/bin/perl -0777 -pe "s/objectVersion = \\d+;/objectVersion = $v;/" -i.bak MyApp.xcodeproj/project.pbxproj || true
+            /usr/bin/perl -0777 -pe "s/objectVersion = \\d+;/objectVersion = $v;/" -i.bak helloios.xcodeproj/project.pbxproj || true
             echo "Applied objectVersion $v. Header preview:"
-            sed -n '1,20p' MyApp.xcodeproj/project.pbxproj || true
+            sed -n '1,20p' helloios.xcodeproj/project.pbxproj || true
             echo "Running xcodebuild archive..."
             set +e
             xcodebuild clean archive \
-              -project MyApp.xcodeproj \
-              -scheme MyApp \
+              -project helloios.xcodeproj \
+              -scheme helloios \
               -archivePath "$ARCHIVE_PATH" \
               -sdk iphoneos \
               -configuration Release \
@@ -82,7 +82,7 @@ jobs:
           if [ "$build_ok" -ne 1 ]; then
             echo "ERROR: All objectVersion attempts failed. Dumping debug info:"
             echo "===== project.pbxproj header ====="
-            sed -n '1,200p' MyApp.xcodeproj/project.pbxproj || true
+            sed -n '1,200p' helloios.xcodeproj/project.pbxproj || true
             echo "===== build directory listing ====="
             ls -la build || true
             exit 74
@@ -91,20 +91,20 @@ jobs:
       - name: Create unsigned .ipa by packaging .app
         run: |
           set -e
-          APP_PATH="$PWD/build/MyApp.xcarchive/Products/Applications/MyApp.app"
+          APP_PATH="$PWD/build/helloios.xcarchive/Products/Applications/helloios.app"
           echo "App path: $APP_PATH"
           if [ ! -d "$APP_PATH" ]; then
             echo "ERROR: App not found at expected path. Listing archive contents:"
-            ls -la build/MyApp.xcarchive || true
+            ls -la build/helloios.xcarchive || true
             exit 1
           fi
           mkdir -p build/Payload
           cp -R "$APP_PATH" build/Payload/
-          (cd build && zip -r MyApp-unsigned.ipa Payload) || exit 1
-          ls -la build/MyApp-unsigned.ipa
+          (cd build && zip -r helloios-unsigned.ipa Payload) || exit 1
+          ls -la build/helloios-unsigned.ipa
 
       - name: Upload unsigned IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MyApp-unsigned-ipa
-          path: build/MyApp-unsigned.ipa
+          name: helloios-unsigned-ipa
+          path: build/helloios-unsigned.ipa
