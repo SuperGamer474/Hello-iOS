@@ -95,6 +95,7 @@ jobs:
           set -e
           ARCHIVE_PATH="$PWD/build/helloios.xcarchive"
           APP_PATH="$ARCHIVE_PATH/Products/Applications/helloios.app"
+          OUTPUT_IPA="build/com.SuperGamer474.helloios-unsigned-ios.ipa"
           echo "Device app path: $APP_PATH"
           if [ ! -d "$APP_PATH" ]; then
             echo "ERROR: App not found at expected path. Listing archive contents:"
@@ -104,8 +105,10 @@ jobs:
           mkdir -p build/Payload
           rm -rf build/Payload/* || true
           cp -R "$APP_PATH" build/Payload/
-          (cd build && zip -r "com.SuperGamer474.helloios-ios.ipa" Payload) || exit 1
-          ls -la build/com.SuperGamer474.helloios-ios.ipa
+          # Create .ipa file (which is just a zip with .ipa extension)
+          (cd build && zip -r "$(basename "$OUTPUT_IPA")" Payload) || exit 1
+          echo "Created device ipa: $OUTPUT_IPA"
+          ls -la "$OUTPUT_IPA" || true
 
       - name: Build simulator (iphonesimulator) and package simulator .ipa (if possible)
         run: |
@@ -151,16 +154,23 @@ jobs:
           fi
 
           echo "Found simulator .app at: $FOUND_APP"
+          SIM_IPA="build/com.SuperGamer474.helloios-unsigned-iossimulator.ipa"
           mkdir -p build/Payload-sim
           rm -rf build/Payload-sim/* || true
           cp -R "$FOUND_APP" build/Payload-sim/
-          (cd build && zip -r "com.SuperGamer474.helloios-iossimulator.ipa" Payload-sim) || exit 1
-          ls -la build/com.SuperGamer474.helloios-iossimulator.ipa
+          (cd build && zip -r "$(basename "$SIM_IPA")" Payload-sim) || exit 1
+          echo "Created simulator ipa: $SIM_IPA"
+          ls -la "$SIM_IPA" || true
 
-      - name: Upload unsigned IPA artifacts
+      - name: Upload device unsigned IPA artifact (named as .ipa)
         uses: actions/upload-artifact@v4
         with:
-          name: helloios-unsigned-ipas
-          path: |
-            build/com.SuperGamer474.helloios-ios.ipa
-            build/com.SuperGamer474.helloios-iossimulator.ipa
+          name: com.SuperGamer474.helloios-unsigned-ios.ipa
+          path: build/com.SuperGamer474.helloios-unsigned-ios.ipa
+
+      - name: Upload simulator unsigned IPA artifact (named as .ipa) (ignore if not found)
+        uses: actions/upload-artifact@v4
+        with:
+          name: com.SuperGamer474.helloios-unsigned-iossimulator.ipa
+          path: build/com.SuperGamer474.helloios-unsigned-iossimulator.ipa
+          if-no-files-found: ignore
