@@ -1,7 +1,7 @@
 name: helloios
 
 options:
-  bundleIdPrefix: com.SuperGamer474
+  bundleIdPrefix: com.supergamer474
   xcodeVersion: "15.0"
 
 configs:
