@@ -5,13 +5,13 @@
   <key>CFBundleDisplayName</key>
   <string>Hello iOS</string>
   <key>CFBundleName</key>
-  <string>Hello iOS</string>
+  <string>helloios</string>
   <key>CFBundleIdentifier</key>
   <string>com.supergamer474.helloios</string>
   <key>CFBundleVersion</key>
-  <string>2</string>
+  <string>1</string>
   <key>CFBundleShortVersionString</key>
-  <string>2.0</string>
+  <string>1.0</string>
   <key>UILaunchStoryboardName</key>
   <string>LaunchScreen</string>
   <key>NSPrincipalClass</key>
