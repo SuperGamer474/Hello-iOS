@@ -1,4 +1,4 @@
-name: Hello iOS
+name: helloios
 options:
   bundleIdPrefix: com.SuperGamer474.helloios
   xcodeVersion: "15.0"
