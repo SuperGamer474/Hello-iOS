@@ -19,9 +19,11 @@ targets:
       IPHONEOS_DEPLOYMENT_TARGET: "15.0"
       SWIFT_VERSION: "5.0"
     info:
-      CFBundleDisplayName: "Hello iOS"
-      CFBundleName: "helloios"
-      CFBundleVersion: "1"
-      CFBundleShortVersionString: "1.0"
-      UILaunchStoryboardName: "LaunchScreen"
-      NSPrincipalClass: "UIApplication"
+      path: "Info.plist"
+      properties:
+        CFBundleDisplayName: "Hello iOS"
+        CFBundleName: "helloios"
+        CFBundleVersion: "1"
+        CFBundleShortVersionString: "1.0"
+        UILaunchStoryboardName: "LaunchScreen"
+        NSPrincipalClass: "UIApplication"
