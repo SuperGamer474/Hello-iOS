@@ -1,5 +1,5 @@
 // ContentView.swift
-// Hello iOS World! — static, no CoreMotion tilt, but keeps all the cool styling.
+// Hello iOS! — static, no CoreMotion tilt, but keeps all the cool styling.
 
 import SwiftUI
 
@@ -31,7 +31,7 @@ struct ContentView: View {
                 .opacity(0.14)
             
             // THE TEXT (no tilt!)
-            Text("Hello iOS World!")
+            Text("Hello iOS!")
                 .font(.system(size: 56, weight: .black, design: .rounded))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(
